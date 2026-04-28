@@ -1,0 +1,5 @@
+{
+  "name": "LAZISNU Ngaglik",
+  "description": "Aplikasi Lembaga Amil Zakat Infaq Sedekah Nahdlatul Ulama (LAZISNU) Ngaglik untuk donasi online dan laporan penyaluran real-time.",
+  "requestFramePermissions": ["geolocation"]
+}

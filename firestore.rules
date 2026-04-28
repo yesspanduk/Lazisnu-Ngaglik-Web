@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - role: string (required, 'admin' or 'donor')
+    //
+    // Collection: donations
+    // Document ID: {donationId}
+    // Fields:
+    //   - amount: number (required, > 0)
+    //   - donorName: string (required, 1-100 chars)
+    //   - donorEmail: string (optional, email format)
+    //   - type: string (required, 'Zakat', 'Infaq', 'Sedekah')
+    //   - status: string (required, 'pending', 'success')
+    //   - timestamp: timestamp (required)
+    //   - transactionId: string (required)
+    //   - uid: string (optional, UID of donor if logged in)
+    //
+    // Collection: distributions
+    // Document ID: {reportId}
+    // Fields:
+    //   - title: string (required, 1-200 chars)
+    //   - description: string (required, 1-2000 chars)
+    //   - amount: number (required, > 0)
+    //   - date: string (required, ISO 8601)
+    //   - category: string (required)
+    //   - imageUrl: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email in ["sepandukg@gmail.com", "upzisnungaglik@gmail.com"] && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'donor'];
+    }
+
+    function isValidDonation(data) {
+      return data.keys().hasAll(['amount', 'donorName', 'type', 'status', 'timestamp', 'transactionId']) &&
+             data.amount is number && data.amount > 0 &&
+             data.donorName is string && data.donorName.size() > 0 && data.donorName.size() <= 100 &&
+             data.type in ['Zakat', 'Infaq', 'Sedekah'] &&
+             data.status in ['pending', 'success'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidDistribution(data) {
+      return data.keys().hasAll(['title', 'description', 'amount', 'date', 'category']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+             data.amount is number && data.amount > 0 &&
+             isValidDateString(data.date);
+    }
+
+    function isValidAmbulanceReport(data) {
+      return data.keys().hasAll(['month', 'totalTrips', 'patientTrips', 'funeralTrips', 'socialTrips', 'timestamp']) &&
+             data.month is string && data.month.size() > 0 &&
+             data.totalTrips is number &&
+             data.patientTrips is number &&
+             data.funeralTrips is number &&
+             data.socialTrips is number &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAll(['logoUrl', 'qrisZakatUrl', 'qrisInfaqUrl', 'waAdmin1', 'waAdmin2']) &&
+             data.logoUrl is string && data.logoUrl.size() <= 1000 &&
+             data.qrisZakatUrl is string && data.qrisZakatUrl.size() <= 1000 &&
+             data.qrisInfaqUrl is string && data.qrisInfaqUrl.size() <= 1000 &&
+             data.waAdmin1 is string && data.waAdmin1.size() <= 20 &&
+             data.waAdmin2 is string && data.waAdmin2.size() <= 20;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['title', 'imageUrl', 'timestamp']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.imageUrl is string && data.imageUrl.size() <= 1000 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'donor';
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+      allow delete: if isAdmin();
+    }
+
+    match /donations/{donationId} {
+      // Successful donations are publicly readable for transparency and real-time notifications.
+      // Pending donations are only readable by Admins or the owner (if logged in).
+      allow read: if isAdmin() || 
+                    (resource.data.status == 'success') || 
+                    (isAuthenticated() && resource.data.uid == request.auth.uid);
+      
+      // Anyone can create a donation (public donation form)
+      allow create: if isValidDonation(request.resource.data);
+      
+      // Only admins can update donation status (e.g. to success) or correct the amount
+      allow update: if isAdmin() && isValidDonation(request.resource.data);
+      
+      allow delete: if isAdmin();
+    }
+
+    match /distributions/{reportId} {
+      // Publicly readable reports
+      allow read: if true;
+      // Only admins can manage reports
+      allow write: if isAdmin() && isValidDistribution(request.resource.data);
+    }
+
+    match /ambulance_reports/{reportId} {
+      // Publicly readable reports
+      allow read: if true;
+      // Only admins can manage reports
+      allow write: if isAdmin() && isValidAmbulanceReport(request.resource.data);
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    match /activities/{activityId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidActivity(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}

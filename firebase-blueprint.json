@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "donations": {
+      "title": "Donation",
+      "description": "Records of donations made by users",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number", "description": "Amount donated in IDR" },
+        "donorName": { "type": "string", "description": "Name of the donor" },
+        "donorEmail": { "type": "string", "format": "email", "description": "Email of the donor" },
+        "type": { "type": "string", "enum": ["Zakat", "Infaq", "Sedekah"], "description": "Type of donation" },
+        "status": { "type": "string", "enum": ["pending", "success"], "description": "Current status of the transaction" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the donation was made" },
+        "transactionId": { "type": "string", "description": "Unique ID for the transaction" },
+        "uid": { "type": "string", "description": "Firebase Auth UID of the donor" }
+      },
+      "required": ["amount", "donorName", "type", "status", "timestamp"]
+    },
+    "distributions": {
+      "title": "Distribution Report",
+      "description": "Reports of how funds were distributed to the community",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the distribution activity" },
+        "description": { "type": "string", "description": "Detailed description of the activity" },
+        "amount": { "type": "number", "description": "Amount distributed" },
+        "date": { "type": "string", "format": "date", "description": "Date of distribution" },
+        "category": { "type": "string", "description": "Category (e.g., Education, Health, Social)" },
+        "imageUrl": { "type": "string", "description": "Optional image URL of the activity" }
+      },
+      "required": ["title", "description", "amount", "date", "category"]
+    },
+    "users": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "donor"] }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "settings": {
+      "title": "Website Settings",
+      "description": "Global settings for branding and assets",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "description": "URL for the website logo" },
+        "qrisZakatUrl": { "type": "string", "description": "URL for the Zakat QRIS image" },
+        "qrisInfaqUrl": { "type": "string", "description": "URL for the Infaq QRIS image" },
+        "waAdmin1": { "type": "string", "description": "WhatsApp number for Admin 1" },
+        "waAdmin2": { "type": "string", "description": "WhatsApp number for Admin 2" }
+      }
+    },
+    "activities": {
+      "title": "Activity Report",
+      "description": "Photos of recent activities",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the activity" },
+        "imageUrl": { "type": "string", "description": "URL of the activity photo" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "imageUrl", "timestamp"]
+    }
+  },
+  "firestore": {
+    "donations/{donationId}": {
+      "schema": "donations",
+      "description": "Collection of all donations"
+    },
+    "distributions/{reportId}": {
+      "schema": "distributions",
+      "description": "Collection of distribution reports"
+    },
+    "users/{uid}": {
+      "schema": "users",
+      "description": "Collection of user profiles"
+    },
+    "settings/{settingId}": {
+      "schema": "settings",
+      "description": "Global website settings"
+    },
+    "activities/{activityId}": {
+      "schema": "activities",
+      "description": "Collection of activity photos"
+    }
+  }
+}
